@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowRightIcon, SparklesIcon, BoltIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { ArrowRightIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { scrollToElement } from '@/lib/utils';
 import Image from 'next/image';
 
