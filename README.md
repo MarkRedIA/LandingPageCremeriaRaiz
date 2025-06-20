@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🧀 Cremería Raíz - Landing Page Premium
 
 Una landing page premium para Cremería Raíz, cremería artesanal mexicana dedicada a la producción y venta de quesos, yogures y productos lácteos frescos y naturales. Diseño moderno, enfocado en transmitir tradición, calidad y atención personalizada.
@@ -96,3 +97,7 @@ dark-950: #030712
 ---
 
 **Desarrollado con pasión por la tradición y la calidad mexicana.**
+=======
+# LandingPageCremer-aRa-z
+Página de aterrizaje de la Cremería Raíz
+>>>>>>> af00abfa1735c0d8fc6dd88d18d429b6aa517f54
