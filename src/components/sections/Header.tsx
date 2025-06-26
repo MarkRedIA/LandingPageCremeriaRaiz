@@ -5,12 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MenuIcon, XIcon } from 'lucide-react';
 import { scrollToElement } from '@/lib/utils';
 import Image from 'next/image';
+import Link from 'next/link';
 
 const navItems = [
   { label: 'Inicio', href: '#hero' },
   { label: 'Productos', href: '#products' },
   { label: 'Beneficios', href: '#benefits' },
   { label: 'Contacto', href: '#contact' },
+  { label: 'Dashboard', href: '#dashboard' },
 ];
 
 export function Header() {

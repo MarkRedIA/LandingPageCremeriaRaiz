@@ -91,7 +91,7 @@ export default function RootLayout({
       <body className="antialiased">
         {children}
         {/* AI Chatbot Widget */}
-        <ChatBot />
+        {/* <ChatBot /> */}
       </body>
     </html>
   );

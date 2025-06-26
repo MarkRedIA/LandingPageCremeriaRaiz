@@ -6,6 +6,7 @@ import { Contact } from '@/components/sections/Contact';
 import { ScrollIndicator } from '@/components/ui/ScrollIndicator';
 import { CustomCursor } from '@/components/ui/CustomCursor';
 import { FloatingParticles } from '@/components/ui/FloatingParticles';
+import DashboardSection from '@/components/sections/DashboardSection';
 
 export default function Home() {
   return (
@@ -29,6 +30,8 @@ export default function Home() {
       
       {/* Contact form section */}
       <Contact />
+      {/* Dashboard section (protegida) */}
+      <DashboardSection />
       
       {/* Footer */}
       <footer className="bg-dark-950 border-t border-primary-500/20 py-12">

@@ -6,10 +6,10 @@ import { CheckCircleIcon, ExclamationCircleIcon, PaperAirplaneIcon } from '@hero
 
 export function ContactForm() {
   type FormData = {
-    name: string;
-    email: string;
-    phone: string;
-    message: string;
+  name: string;
+  email: string;
+  phone: string;
+  message: string;
   };
   type FormErrors = Partial<Record<keyof FormData, string>>;
 
