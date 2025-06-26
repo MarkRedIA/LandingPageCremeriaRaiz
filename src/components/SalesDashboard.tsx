@@ -100,9 +100,14 @@ export default function SalesDashboard() {
         console.log('Hojas encontradas:', workbook.SheetNames);
         const worksheet = workbook.Sheets['GeneralV'];
         if (!worksheet) {
-          setError('No se encontró la hoja "GeneralV" en el archivo.');
+          setError('El archivo no contiene la estructura requerida para ejecutar el dashboard. La hoja "GeneralV" es necesaria.');
           setAllSales([]);
           setStats(null);
+          setLoading(false);
+          // Esperar 3 segundos y refrescar la página
+          setTimeout(() => {
+            window.location.reload();
+          }, 3000);
           return;
         }
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, range: 6 });
@@ -187,6 +192,7 @@ export default function SalesDashboard() {
       reader.readAsArrayBuffer(file);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al procesar el archivo');
+      setLoading(false);
     }
   }, []);
 
@@ -449,6 +455,11 @@ export default function SalesDashboard() {
   // Función para generar el PDF ejecutivo
   const handleDownloadExecutivePDF = async () => {
     const doc = new jsPDF('p', 'pt', 'a4');
+    
+    // Configurar fuente Times (similar a Century Gothic) tamaño 10 para todo el documento
+    doc.setFont('times');
+    doc.setFontSize(10);
+    
     // Logotipo
     const logoUrl = '/images/LogoCr.jpg';
     const logoImg = await fetch(logoUrl).then(r => r.blob()).then(blob => new Promise(resolve => {
@@ -457,20 +468,27 @@ export default function SalesDashboard() {
       reader.readAsDataURL(blob);
     }));
     doc.addImage(logoImg, 'JPEG', 40, 30, 70, 70);
+    
+    // Título principal - Times tamaño 22
+    doc.setFont('times');
     doc.setFontSize(22);
     doc.setTextColor('#ea580c');
-    doc.text('Resumen Ejecutivo de Ventas', 130, 60);
-    doc.setFontSize(12);
+    doc.text('Resumen Ejecutivo de Ventas', 297, 60, { align: 'center' });
+    
+    // Fecha de generación - Times tamaño 10
+    doc.setFont('times');
+    doc.setFontSize(10);
     doc.setTextColor('#333');
-    doc.text(`Fecha de generación: ${new Date().toLocaleDateString()}`, 130, 80);
+    doc.text(`Fecha de generación: ${new Date().toLocaleDateString()}`, 297, 80, { align: 'center' });
+    
     // 1. Métricas principales con iconos, colores y layout igual que el dashboard
     const metricIcons = [
-      '/images/filetext.png', // Total de ventas
-      '/images/users.png',    // Clientes totales
-      '/images/dollar.png',   // Total general
-      '/images/divide.png',   // Ticket promedio
-      '/images/arrowup.png',  // Venta máxima
-      '/images/arrowdown.png' // Venta mínima
+      '/images/filetext.svg', // Total de ventas
+      '/images/users.svg',    // Clientes totales
+      '/images/dollar.svg',   // Total general
+      '/images/divide.svg',   // Ticket promedio
+      '/images/arrowup.svg',  // Venta máxima
+      '/images/arrowdown.svg' // Venta mínima
     ];
     const metricBgColors = [
       [219, 234, 254], // azul claro
@@ -507,44 +525,81 @@ export default function SalesDashboard() {
     const cardWidth = 140;
     const cardHeight = 65;
     const cardGap = 18;
-    const startX = 40;
-    const startY = 135;
+    const startY = 125;
     for (let i = 0; i < 6; i++) {
       const row = Math.floor(i / 3);
       const col = i % 3;
-      const x = startX + col * (cardWidth + cardGap);
+      const x = 40 + col * (cardWidth + cardGap);
       const yCard = startY + row * (cardHeight + 18);
       // Fondo de tarjeta
       doc.setFillColor(...metricBgColors[i]);
       doc.roundedRect(x, yCard, cardWidth, cardHeight, 8, 8, 'F');
-      // Icono
-      try {
-        const iconImg = await fetch(metricIcons[i]).then(r => r.blob()).then(blob => new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(blob);
-        }));
-        doc.addImage(iconImg as string, 'PNG', x + cardWidth / 2 - 10, yCard + 7, 20, 20);
-      } catch {}
-      // Título
-      doc.setFontSize(8);
+      // Icono - Dibujar iconos básicos directamente en el PDF
+      const iconX = x + cardWidth / 2;
+      const iconY = yCard + 17;
+      
+      doc.setFillColor(metricTextColors[i]);
+      doc.setDrawColor(metricTextColors[i]);
+      doc.setLineWidth(1);
+      
+      switch(i) {
+        case 0: // FileText - Total de ventas
+          doc.rect(iconX - 6, iconY - 6, 12, 12, 'S');
+          doc.line(iconX - 4, iconY - 2, iconX + 2, iconY - 2);
+          doc.line(iconX - 4, iconY, iconX + 2, iconY);
+          doc.line(iconX - 4, iconY + 2, iconX + 2, iconY + 2);
+          break;
+        case 1: // Users - Clientes totales
+          doc.circle(iconX - 3, iconY - 2, 2, 'F');
+          doc.circle(iconX + 3, iconY - 2, 2, 'F');
+          doc.circle(iconX, iconY + 3, 2, 'F');
+          break;
+        case 2: // DollarSign - Total general
+          doc.line(iconX, iconY - 6, iconX, iconY + 6);
+          doc.ellipse(iconX, iconY - 2, 4, 2, 'S');
+          doc.ellipse(iconX, iconY + 2, 4, 2, 'S');
+          break;
+        case 3: // Divide - Ticket promedio
+          doc.circle(iconX, iconY - 4, 1.5, 'F');
+          doc.line(iconX - 4, iconY, iconX + 4, iconY);
+          doc.circle(iconX, iconY + 4, 1.5, 'F');
+          break;
+        case 4: // ArrowUpCircle - Venta máxima
+          doc.circle(iconX, iconY, 4, 'S');
+          doc.line(iconX, iconY - 3, iconX, iconY + 1);
+          doc.line(iconX - 2, iconY - 1, iconX, iconY - 3);
+          doc.line(iconX + 2, iconY - 1, iconX, iconY - 3);
+          break;
+        case 5: // ArrowDownCircle - Venta mínima
+          doc.circle(iconX, iconY, 4, 'S');
+          doc.line(iconX, iconY - 1, iconX, iconY + 3);
+          doc.line(iconX - 2, iconY + 1, iconX, iconY + 3);
+          doc.line(iconX + 2, iconY + 1, iconX, iconY + 3);
+          break;
+      }
+      // Título - Times tamaño 10 (cambiado de 11 a 10 para coincidir con las tablas)
+      doc.setFont('times');
+      doc.setFontSize(10);
       doc.setTextColor(metricTextColors[i]);
       doc.text(metricTitles[i], x + cardWidth / 2, yCard + 32, { align: 'center' });
-      // Valor
+      // Valor - Times tamaño variable según longitud
       if (i === 4 || i === 5) { // Venta máxima o mínima
         const [monto, ...clienteArr] = String(metricValues[i]).split(' (');
         let cliente = clienteArr.length ? clienteArr.join(' (').replace(')', '') : '';
         if (cliente.length > 12) cliente = cliente.slice(0, 12) + '...';
-        doc.setFontSize(monto.length > 10 ? 8 : 11);
+        doc.setFont('times');
+        doc.setFontSize(monto.length > 10 ? 11 : 13); // Aumentado de 9:11 a 11:13
         doc.setTextColor('#333');
         doc.text(monto, x + cardWidth / 2, yCard + 48, { align: 'center' });
         if (cliente) {
-          doc.setFontSize(7);
+          doc.setFont('times');
+          doc.setFontSize(10); // Aumentado de 8 a 10
           doc.setTextColor('#888');
           doc.text(cliente, x + cardWidth / 2, yCard + 58, { align: 'center' });
         }
       } else {
-        doc.setFontSize(String(metricValues[i]).length > 10 ? 8 : 12);
+        doc.setFont('times');
+        doc.setFontSize(String(metricValues[i]).length > 10 ? 11 : 13); // Aumentado de 9:11 a 11:13
         doc.setTextColor('#333');
         doc.text(String(metricValues[i]), x + cardWidth / 2, yCard + 54, { align: 'center' });
       }
@@ -575,17 +630,20 @@ export default function SalesDashboard() {
           img.src = image64;
         });
         const chartImg = canvas.toDataURL('image/png');
+        // Título de gráfica - Times tamaño 14
+        doc.setFont('times');
         doc.setFontSize(14);
         doc.setTextColor('#ea580c');
-        doc.text('Ventas por Cliente', 40, y);
+        doc.text('Ventas por Cliente', 297, y, { align: 'center' });
         doc.addImage(chartImg as string, 'PNG', 40, y + 10, 500, 220);
         y += 240;
       }
     }
-    // Comparativo anual
+    // Comparativo anual - Times tamaño 14 para título
+    doc.setFont('times');
     doc.setFontSize(14);
     doc.setTextColor('#ea580c');
-    doc.text('Comparativo Anual de Ventas', 40, y);
+    doc.text('Comparación de Ventas: Mes vs Mes Anterior', 297, y, { align: 'center' });
     const comparativoHead = ['Mes/Año', 'Ventas Mes Actual', 'Ventas Mes Anterior', 'Diferencia', '% Diferencia'];
     const comparativoBody = comparativoAnual.map(row => [
       `${getMonthName(row.month)} ${row.year}`,
@@ -594,21 +652,24 @@ export default function SalesDashboard() {
       row.diferencia !== null ? formatCurrency(row.diferencia) : '--',
       row.porcentaje !== null ? row.porcentaje.toFixed(1) + '%' : '--',
     ]);
+    // Configurar fuente para la tabla
+    doc.setFont('times');
     autoTable(doc, {
       startY: y + 10,
       head: [comparativoHead],
       body: comparativoBody,
       theme: 'grid',
-      headStyles: { fillColor: [234, 88, 12], textColor: 255, fontStyle: 'bold' },
+      headStyles: { fillColor: [234, 88, 12], textColor: 255, fontStyle: 'bold', fontSize: 10 },
       bodyStyles: { fontSize: 10 },
       margin: { left: 40, right: 40 },
-      styles: { cellPadding: 3 },
+      styles: { cellPadding: 3, fontSize: 10 },
     });
     y = doc.lastAutoTable.finalY + 20;
-    // Detalle de Ventas por Cliente
+    // Detalle de Ventas por Cliente - Times tamaño 14 para título
+    doc.setFont('times');
     doc.setFontSize(14);
     doc.setTextColor('#ea580c');
-    doc.text('Detalle de Ventas por Cliente', 40, y);
+    doc.text('Detalle de Ventas por Cliente', 297, y, { align: 'center' });
     const detalleHead = ['No.', 'Cliente', 'Total', '%', 'Frecuencia', 'Última compra', 'Ticket Prom.', ...mesesDelAnio.map(mes => getMonthName(mes))];
     const detalleBody = clientesExtendidos.slice(0, 10).map((item, idx) => [
       idx + 1,
@@ -620,16 +681,20 @@ export default function SalesDashboard() {
       formatCurrency(item.ticketPromedio),
       ...mesesDelAnio.map(mes => formatCurrency(item.ventasPorMes?.[mes] || 0)),
     ]);
+    // Configurar fuente para la tabla de detalle
+    doc.setFont('times');
     autoTable(doc, {
       startY: y + 10,
       head: [detalleHead],
       body: detalleBody,
       theme: 'grid',
-      headStyles: { fillColor: [234, 88, 12], textColor: 255, fontStyle: 'bold' },
+      headStyles: { fillColor: [234, 88, 12], textColor: 255, fontStyle: 'bold', fontSize: 10 },
       bodyStyles: { fontSize: 9 },
       margin: { left: 40, right: 40 },
-      styles: { cellPadding: 2 },
+      styles: { cellPadding: 2, fontSize: 9 },
       didDrawPage: (data) => {
+        // Pie de página - Times tamaño 9
+        doc.setFont('times');
         doc.setFontSize(9);
         doc.setTextColor('#888');
         doc.text('Reporte generado automáticamente por el Dashboard de Cremería Raíz', 40, doc.internal.pageSize.height - 20);
@@ -944,7 +1009,7 @@ export default function SalesDashboard() {
             {/* Layout comparativo anual */}
             {comparativoAnual.length > 0 && (
               <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-                <h3 className="text-2xl font-semibold text-orange-600 mb-4 text-center w-full">Comparativo Anual de Ventas por Mes</h3>
+                <h3 className="text-2xl font-semibold text-orange-600 mb-4 text-center w-full">Comparación de Ventas: Mes vs Mes Anterior</h3>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
