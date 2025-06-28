@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { processExcelData, DashboardStats, SaleRecord } from '@/lib/excel-processor';
 import { sampleData } from '@/lib/sample-data';
-import { motion } from 'framer-motion';
 import { Upload, FileText, DollarSign, Users, TrendingUp, Play, Divide, ArrowUpCircle, ArrowDownCircle, UserCheck, UserX } from 'lucide-react';
 import { sampleSalesData } from '@/lib/sample-data';
 import * as XLSX from 'xlsx';
@@ -55,22 +55,8 @@ function getMonthlyTotals(sales: SaleRecord[]) {
   return grouped;
 }
 
-function getMonthName(month: string) {
-  const MONTHS_MAP = {
-    '01': 'Enero', '1': 'Enero',
-    '02': 'Febrero', '2': 'Febrero',
-    '03': 'Marzo', '3': 'Marzo',
-    '04': 'Abril', '4': 'Abril',
-    '05': 'Mayo', '5': 'Mayo',
-    '06': 'Junio', '6': 'Junio',
-    '07': 'Julio', '7': 'Julio',
-    '08': 'Agosto', '8': 'Agosto',
-    '09': 'Septiembre', '9': 'Septiembre',
-    '10': 'Octubre',
-    '11': 'Noviembre',
-    '12': 'Diciembre',
-  };
-  return MONTHS_MAP[month] || month;
+function getMonthName(month: string): string {
+  return MONTHS_MAP[month as keyof typeof MONTHS_MAP] || month;
 }
 
 export default function SalesDashboard() {
@@ -85,7 +71,7 @@ export default function SalesDashboard() {
   const [sortBy, setSortBy] = useState<'cliente' | 'total' | 'frecuencia' | 'ultimaCompra' | 'ticketPromedio'>('total');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 10;
+  const rowsPerPage = 20;
 
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     setHasAttemptedUpload(true);
@@ -204,22 +190,25 @@ export default function SalesDashboard() {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-MX', {
       style: 'currency',
-      currency: 'MXN'
+      currency: 'MXN',
+      minimumFractionDigits: 2
     }).format(value);
   };
 
-  // Formateador seguro para ticket promedio
   const formatCurrencySafe = (value: number) => {
-    if (typeof value !== 'number' || isNaN(value) || !isFinite(value)) return formatCurrency(0);
-    return formatCurrency(value);
+    return new Intl.NumberFormat('es-MX', {
+      style: 'currency',
+      currency: 'MXN',
+      minimumFractionDigits: 2
+    }).format(value);
   };
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-semibold">{`Cliente: ${label}`}</p>
-          <p className="text-blue-600">{`Total: ${formatCurrency(payload[0].value)}`}</p>
+          <p className="font-semibold text-gray-800">{label}</p>
+          <p className="text-blue-600">{formatCurrency(payload[0].value)}</p>
         </div>
       );
     }
@@ -454,11 +443,16 @@ export default function SalesDashboard() {
 
   // Función para generar el PDF ejecutivo
   const handleDownloadExecutivePDF = async () => {
-    const doc = new jsPDF('p', 'pt', 'a4');
-    
-    // Configurar fuente Times (similar a Century Gothic) tamaño 10 para todo el documento
-    doc.setFont('times');
-    doc.setFontSize(10);
+    const doc = new jsPDF('p', 'pt', 'letter');
+    // Obtener dimensiones reales de la hoja Letter
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const bottomMargin = 28.35; // 1 cm en puntos
+    const chartBlockHeight = 180; // Altura total del bloque de la gráfica (ajustable)
+    // Posición del título de la gráfica
+    const chartTitleY = pageHeight - bottomMargin - chartBlockHeight + 56 - 18; // Título arriba del bloque
+    // El bloque de la gráfica (sin el título) BAJADO 2 LÍNEAS (28pt)
+    const chartBlockY = pageHeight - bottomMargin - chartBlockHeight + 14 + 28;
     
     // Logotipo
     const logoUrl = '/images/LogoCr.jpg';
@@ -467,19 +461,19 @@ export default function SalesDashboard() {
       reader.onload = () => resolve(reader.result);
       reader.readAsDataURL(blob);
     }));
-    doc.addImage(logoImg, 'JPEG', 40, 30, 70, 70);
+    doc.addImage(logoImg, 'JPEG', 40, 28.35, 70, 70); // 1 cm desde el borde superior
     
     // Título principal - Times tamaño 22
     doc.setFont('times');
     doc.setFontSize(22);
     doc.setTextColor('#ea580c');
-    doc.text('Resumen Ejecutivo de Ventas', 297, 60, { align: 'center' });
+    doc.text('Resumen Ejecutivo de Ventas', pageWidth / 2, 28.35 + 30, { align: 'center' }); // 1 cm + 30pt
     
     // Fecha de generación - Times tamaño 10
     doc.setFont('times');
     doc.setFontSize(10);
     doc.setTextColor('#333');
-    doc.text(`Fecha de generación: ${new Date().toLocaleDateString()}`, 297, 80, { align: 'center' });
+    doc.text(`Fecha de generación: ${new Date().toLocaleDateString()}`, pageWidth / 2, 28.35 + 50, { align: 'center' }); // 1 cm + 50pt
     
     // 1. Métricas principales con iconos, colores y layout igual que el dashboard
     const metricIcons = [
@@ -491,12 +485,12 @@ export default function SalesDashboard() {
       '/images/arrowdown.svg' // Venta mínima
     ];
     const metricBgColors = [
-      [219, 234, 254], // azul claro
-      [237, 233, 254], // morado claro
-      [220, 252, 231], // verde claro
-      [207, 250, 254], // cyan claro
-      [254, 243, 199], // amarillo claro
-      [252, 231, 243]  // rosa claro
+      [255, 255, 255], // blanco
+      [255, 255, 255], // blanco
+      [255, 255, 255], // blanco
+      [255, 255, 255], // blanco
+      [255, 255, 255], // blanco
+      [255, 255, 255]  // blanco
     ];
     const metricTextColors = [
       '#2563eb', // azul
@@ -514,32 +508,37 @@ export default function SalesDashboard() {
       'Venta máxima',
       'Venta mínima',
     ];
-    const metricValues = [
-      filteredStats?.totalRegistros?.toLocaleString('es-MX') || '--',
-      filteredStats?.ventasPorCliente.length || '--',
-      formatCurrency(filteredStats?.totalGeneral || 0),
-      formatCurrencySafe(filteredStats?.ticketPromedio || 0),
-      `${formatCurrency(filteredStats?.ventaMaxima || 0)} (${filteredStats?.clienteMayorCompra || ''})`,
-      `${formatCurrency(filteredStats?.ventaMinima || 0)} (${filteredStats?.clienteMenorCompra || ''})`,
-    ];
+    const metricValues = filteredStats ? [
+      filteredStats.totalRegistros?.toLocaleString('es-MX') || '--',
+      filteredStats.ventasPorCliente.length || '--',
+      formatCurrency(filteredStats.totalGeneral || 0),
+      formatCurrencySafe(filteredStats.ticketPromedio || 0),
+      `${formatCurrency(filteredStats.ventaMaxima || 0)} (${filteredStats.clienteMayorCompra || ''})`,
+      `${formatCurrency(filteredStats.ventaMinima || 0)} (${filteredStats.clienteMenorCompra || ''})`,
+    ] : ['--','--','--','--','--','--'];
     const cardWidth = 140;
     const cardHeight = 65;
     const cardGap = 18;
-    const startY = 125;
+    const startY = 111;
     for (let i = 0; i < 6; i++) {
       const row = Math.floor(i / 3);
       const col = i % 3;
       const x = 40 + col * (cardWidth + cardGap);
-      const yCard = startY + row * (cardHeight + 18);
-      // Fondo de tarjeta
-      doc.setFillColor(...metricBgColors[i]);
+      const yCard = startY + row * (cardHeight + 18) - (i >= 3 ? 14 : 0);
+      // Fondo de tarjeta blanco con borde negro sutil
+      const bgColor = Array.isArray(metricBgColors[i]) ? metricBgColors[i] : [255,255,255];
+      doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
+      // Borde negro de 0.5pt para TODOS los layouts
+      doc.setLineWidth(0.5);
+      doc.setDrawColor(0, 0, 0);
       doc.roundedRect(x, yCard, cardWidth, cardHeight, 8, 8, 'F');
+      doc.roundedRect(x, yCard, cardWidth, cardHeight, 8, 8, 'S');
       // Icono - Dibujar iconos básicos directamente en el PDF
       const iconX = x + cardWidth / 2;
       const iconY = yCard + 17;
       
-      doc.setFillColor(metricTextColors[i]);
-      doc.setDrawColor(metricTextColors[i]);
+      doc.setFillColor(typeof metricTextColors[i] === 'string' ? metricTextColors[i] : '#000');
+      doc.setDrawColor(typeof metricTextColors[i] === 'string' ? metricTextColors[i] : '#000');
       doc.setLineWidth(1);
       
       switch(i) {
@@ -577,30 +576,37 @@ export default function SalesDashboard() {
           doc.line(iconX + 2, iconY + 1, iconX, iconY + 3);
           break;
       }
-      // Título - Times tamaño 10 (cambiado de 11 a 10 para coincidir con las tablas)
+      // Título - Times tamaño 10 con estilos específicos
       doc.setFont('times');
       doc.setFontSize(10);
-      doc.setTextColor(metricTextColors[i]);
+      doc.setTextColor(typeof metricTextColors[i] === 'string' ? metricTextColors[i] : '#000');
+      if (i === 0) { // "Total de ventas" en bold
+        doc.setFont('times', 'bold');
+      } else if (i === 1) { // "Clientes totales" sin bold
+        doc.setFont('times', 'normal');
+      } else {
+        doc.setFont('times', 'normal');
+      }
       doc.text(metricTitles[i], x + cardWidth / 2, yCard + 32, { align: 'center' });
-      // Valor - Times tamaño variable según longitud
+      // Valor - Times tamaño variable según longitud, en negro bold
       if (i === 4 || i === 5) { // Venta máxima o mínima
         const [monto, ...clienteArr] = String(metricValues[i]).split(' (');
         let cliente = clienteArr.length ? clienteArr.join(' (').replace(')', '') : '';
         if (cliente.length > 12) cliente = cliente.slice(0, 12) + '...';
-        doc.setFont('times');
-        doc.setFontSize(monto.length > 10 ? 11 : 13); // Aumentado de 9:11 a 11:13
-        doc.setTextColor('#333');
+        doc.setFont('times', 'bold');
+        doc.setFontSize(monto.length > 10 ? 11 : 13);
+        doc.setTextColor('#000000');
         doc.text(monto, x + cardWidth / 2, yCard + 48, { align: 'center' });
         if (cliente) {
-          doc.setFont('times');
-          doc.setFontSize(10); // Aumentado de 8 a 10
+          doc.setFont('times', 'normal');
+          doc.setFontSize(10);
           doc.setTextColor('#888');
           doc.text(cliente, x + cardWidth / 2, yCard + 58, { align: 'center' });
         }
       } else {
-        doc.setFont('times');
-        doc.setFontSize(String(metricValues[i]).length > 10 ? 11 : 13); // Aumentado de 9:11 a 11:13
-        doc.setTextColor('#333');
+        doc.setFont('times', 'bold');
+        doc.setFontSize(String(metricValues[i]).length > 10 ? 11 : 13);
+        doc.setTextColor('#000000');
         doc.text(String(metricValues[i]), x + cardWidth / 2, yCard + 54, { align: 'center' });
       }
     }
@@ -634,16 +640,16 @@ export default function SalesDashboard() {
         doc.setFont('times');
         doc.setFontSize(14);
         doc.setTextColor('#ea580c');
-        doc.text('Ventas por Cliente', 297, y, { align: 'center' });
-        doc.addImage(chartImg as string, 'PNG', 40, y + 10, 500, 220);
+        doc.text('Ventas por Cliente', 297, y - 14, { align: 'center' });
+        doc.addImage(chartImg as string, 'PNG', 40, y - 4, 500, 220);
         y += 240;
       }
     }
     // Comparativo anual - Times tamaño 14 para título
-    doc.setFont('times');
+    doc.setFont('Times');
     doc.setFontSize(14);
     doc.setTextColor('#ea580c');
-    doc.text('Comparación de Ventas: Mes vs Mes Anterior', 297, y, { align: 'center' });
+    doc.text('Comparación de Ventas: Mes vs Mes Anterior', 297, y - 14, { align: 'center' });
     const comparativoHead = ['Mes/Año', 'Ventas Mes Actual', 'Ventas Mes Anterior', 'Diferencia', '% Diferencia'];
     const comparativoBody = comparativoAnual.map(row => [
       `${getMonthName(row.month)} ${row.year}`,
@@ -652,10 +658,9 @@ export default function SalesDashboard() {
       row.diferencia !== null ? formatCurrency(row.diferencia) : '--',
       row.porcentaje !== null ? row.porcentaje.toFixed(1) + '%' : '--',
     ]);
-    // Configurar fuente para la tabla
-    doc.setFont('times');
+    doc.setFont('Times');
     autoTable(doc, {
-      startY: y + 10,
+      startY: y - 4,
       head: [comparativoHead],
       body: comparativoBody,
       theme: 'grid',
@@ -665,6 +670,97 @@ export default function SalesDashboard() {
       styles: { cellPadding: 3, fontSize: 10 },
     });
     y = doc.lastAutoTable.finalY + 20;
+
+    // --- Gráfica de Variación Porcentual Mensual como bloque (incluye título de la gráfica) ---
+    if (comparativoAnual.length > 0) {
+      let y = chartBlockY;
+      doc.setFont('Times');
+      doc.setFontSize(14);
+      doc.setTextColor('#ea580c');
+      doc.text('Variación Porcentual Mensual', 297, y + 14, { align: 'center' });
+      y += 18;
+      const chartData = comparativoAnual.filter(row => row.porcentaje !== null);
+      if (chartData.length > 0) {
+        const visualTop = Math.max(Math.max(...chartData.map(d => Math.abs(d.porcentaje!))), 2);
+        const visualBottom = Math.min(Math.min(...chartData.map(d => d.porcentaje!)), 0);
+        const visualRange = visualTop - visualBottom;
+        const chartPadding = 20;
+        const chartHeight = 120;
+        const chartWidth = 400;
+        const desplazamientoX = 40;
+        const chartX = (595 - chartWidth) / 2 + desplazamientoX;
+        const chartY = y;
+        const zeroY = chartY + chartPadding + (visualTop - 0) * ((chartHeight - 2 * chartPadding) / visualRange);
+        // Ejes
+        doc.setDrawColor('#333');
+        doc.setLineWidth(0.5);
+        doc.line(chartX, zeroY, chartX + chartWidth, zeroY);
+        doc.line(chartX, chartY + chartPadding, chartX, chartY + chartHeight - chartPadding);
+        doc.setFont('Times');
+        doc.setFontSize(7);
+        doc.setTextColor('#333');
+        const ySteps = 4;
+        for (let i = 0; i <= ySteps; i++) {
+          const yValue = visualBottom + (visualRange * i / ySteps);
+          const yPos = chartY + chartPadding + (visualTop - yValue) * ((chartHeight - 2 * chartPadding) / visualRange);
+          doc.text(`${yValue.toFixed(0)}%`, chartX - 3, yPos + 1, { align: 'right' });
+          if (i > 0 && i < ySteps) {
+            doc.setDrawColor('#e5e7eb');
+            doc.setLineWidth(0.3);
+            doc.line(chartX, yPos, chartX + chartWidth, yPos);
+          }
+        }
+        // Barras y etiquetas
+        const barWidth = Math.min(chartWidth / chartData.length, 25);
+        chartData.forEach((row, index) => {
+          const x = chartX + index * (chartWidth / chartData.length) + (chartWidth / chartData.length - 25) / 2;
+          const percentage = row.porcentaje!;
+          const barHeight = Math.abs(percentage) * ((chartHeight - 2 * chartPadding) / visualRange);
+          if (percentage >= 0) {
+            doc.setFillColor(34, 197, 94);
+          } else {
+            doc.setFillColor(239, 68, 68);
+          }
+          let barY;
+          if (percentage >= 0) {
+            barY = zeroY - barHeight;
+          } else {
+            barY = zeroY;
+          }
+          doc.rect(x, barY, 25, barHeight, 'F');
+          doc.setDrawColor('#333');
+          doc.setLineWidth(0.3);
+          doc.rect(x, barY, 25, barHeight, 'S');
+          doc.setFont('Times');
+          doc.setFontSize(7);
+          doc.setTextColor('#333');
+          // Nombre del mes y porcentaje juntos, alineados horizontalmente a la altura del valor
+          let labelY;
+          if (percentage >= 0) {
+            labelY = barY - 2;
+          } else {
+            labelY = barY + barHeight + 12;
+          }
+          const monthLabel = getMonthName(row.month);
+          const labelText = `${monthLabel}  ${percentage >= 0 ? '' : '-'}${Math.abs(percentage).toFixed(1)}%`;
+          doc.text(labelText, x + 12.5, labelY, { align: 'center' });
+        });
+        // Título del eje Y desplazado con la gráfica
+        doc.setFont('Times');
+        doc.setFontSize(8);
+        doc.setTextColor('#333');
+        doc.text('Variación (%)', chartX, chartY + chartHeight / 2, { align: 'center', angle: 90 });
+      }
+    }
+    // Pie de página y numeración en página 1
+    doc.setFont('times');
+    doc.setFontSize(9);
+    doc.setTextColor('#888');
+    doc.text('Reporte generado automáticamente por el Dashboard de Cremería Raíz', 40, pageHeight - 20);
+    doc.text('Pág.: 1', pageWidth - 40, pageHeight - 20, { align: 'right' });
+    // Salto de página para la gráfica de variación porcentual
+    doc.addPage();
+    y = 60;
     // Detalle de Ventas por Cliente - Times tamaño 14 para título
     doc.setFont('times');
     doc.setFontSize(14);
@@ -693,11 +789,12 @@ export default function SalesDashboard() {
       margin: { left: 40, right: 40 },
       styles: { cellPadding: 2, fontSize: 9 },
       didDrawPage: (data) => {
-        // Pie de página - Times tamaño 9
+        // Pie de página y numeración en página 2
         doc.setFont('times');
         doc.setFontSize(9);
         doc.setTextColor('#888');
         doc.text('Reporte generado automáticamente por el Dashboard de Cremería Raíz', 40, doc.internal.pageSize.height - 20);
+        doc.text('Pág.: 2', pageWidth - 40, doc.internal.pageSize.height - 20, { align: 'right' });
       }
     });
     doc.save('Resumen_Ejecutivo_CremeriaRaiz.pdf');
@@ -1009,7 +1106,6 @@ export default function SalesDashboard() {
             {/* Layout comparativo anual */}
             {comparativoAnual.length > 0 && (
               <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-                <h3 className="text-2xl font-semibold text-orange-600 mb-4 text-center w-full">Comparación de Ventas: Mes vs Mes Anterior</h3>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
@@ -1042,6 +1138,22 @@ export default function SalesDashboard() {
                     </div>
                   )}
                 </div>
+                {/* Gráfica de variación porcentual restaurada */}
+                <div className="w-full flex justify-center mt-8">
+                  <ResponsiveContainer width={600} height={320}>
+                    <BarChart data={comparativoAnual.filter(row => row.porcentaje !== null)} margin={{ left: 40, right: 40, top: 20, bottom: 30 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey={row => `${getMonthName(row.month)} ${row.year}`} tick={{ fontSize: 12 }} angle={-35} textAnchor="end" height={70} interval={0} />
+                      <YAxis tickFormatter={v => `${v.toFixed(0)}%`} tick={{ fontSize: 12 }} width={50} />
+                      <Tooltip formatter={v => `${v.toFixed(1)}%`} labelFormatter={(_, payload) => payload && payload[0] ? `${getMonthName(payload[0].payload.month)} ${payload[0].payload.year}` : ''} />
+                      <Bar dataKey="porcentaje">
+                        {comparativoAnual.filter(row => row.porcentaje !== null).map((row, idx) => (
+                          <Cell key={idx} fill={row.porcentaje! >= 0 ? '#22c55e' : '#ef4444'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             )}
 
@@ -1053,7 +1165,7 @@ export default function SalesDashboard() {
               className="bg-white rounded-xl shadow-lg p-6 mt-8"
             >
               <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-4">
-                <h3 className="text-2xl font-semibold text-orange-600 text-center w-full">
+                <h3 className="text-2xl font-semibold text-orange-600 text-center w-full -mt-2">
                   Detalle de Ventas por Cliente
                 </h3>
                 <input
