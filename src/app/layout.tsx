@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { StructuredData } from "@/components/ui/StructuredData";
-import { ChatBot } from "@/components/ui/ChatBot";
 
 export const metadata: Metadata = {
   title: "Cremería Raíz - Productos Lácteos Artesanales de Calidad",
@@ -90,8 +89,6 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         {children}
-        {/* AI Chatbot Widget */}
-        {/* <ChatBot /> */}
       </body>
     </html>
   );

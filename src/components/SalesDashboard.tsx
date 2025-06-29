@@ -1,21 +1,28 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { processExcelData, DashboardStats, SaleRecord } from '@/lib/excel-processor';
-import { sampleData } from '@/lib/sample-data';
-import { Upload, FileText, DollarSign, Users, TrendingUp, Play, Divide, ArrowUpCircle, ArrowDownCircle, UserCheck, UserX } from 'lucide-react';
-import { sampleSalesData } from '@/lib/sample-data';
-import * as XLSX from 'xlsx';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { DashboardStats, SaleRecord } from '@/lib/excel-processor';
+import { Upload, FileText, DollarSign, Users, Divide, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import Image from 'next/image';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
-const COLORS = [
-  '#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#ff0000',
-  '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'
-];
+// Funciones de formato de moneda
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: 'MXN',
+    minimumFractionDigits: 2
+  }).format(value);
+};
+
+const formatCurrencySafe = (value: number) => {
+  if (typeof value !== 'number' || isNaN(value) || !isFinite(value)) return formatCurrency(0);
+  return formatCurrency(value);
+};
 
 const MONTHS_MAP = {
   '01': 'Enero', '1': 'Enero',
@@ -47,7 +54,7 @@ function excelDateToString(serial: number): string {
 function getMonthlyTotals(sales: SaleRecord[]) {
   const grouped: Record<string, Record<string, number>> = {};
   sales.forEach(sale => {
-    const [day, month, year] = sale.fecha.split('/');
+    const [, month, year] = sale.fecha.split('/');
     if (!grouped[year]) grouped[year] = {};
     if (!grouped[year][month]) grouped[year][month] = 0;
     grouped[year][month] += sale.total;
@@ -58,6 +65,23 @@ function getMonthlyTotals(sales: SaleRecord[]) {
 function getMonthName(month: string): string {
   return MONTHS_MAP[month as keyof typeof MONTHS_MAP] || month;
 }
+
+// Tooltip personalizado para las gráficas
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-2 rounded shadow text-xs text-gray-800 border border-gray-200">
+        <div className="font-semibold mb-1">{label}</div>
+        {payload.map((entry: any, idx: number) => (
+          <div key={idx} style={{ color: entry.color }}>
+            {entry.name}: <span className="font-bold">{formatCurrency(entry.value)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 export default function SalesDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -102,7 +126,7 @@ export default function SalesDashboard() {
         let publicoEnGeneral = 0;
         const clientTotals: { [key: string]: number } = {};
         for (let i = 0; i < jsonData.length; i++) {
-          const row = jsonData[i] as any[];
+          const row = jsonData[i] as (string | number | null)[];
           console.log(`Fila ${i + 7}:`, row);
           if (row[0] && typeof row[0] === 'string' && row[0].includes('Total venta:')) break;
           // Limpia y extrae fecha y total (elimina todos los espacios)
@@ -181,91 +205,6 @@ export default function SalesDashboard() {
       setLoading(false);
     }
   }, []);
-
-  const loadSampleData = useCallback(() => {
-    setStats(sampleData);
-    setError(null);
-  }, []);
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-MX', {
-      style: 'currency',
-      currency: 'MXN',
-      minimumFractionDigits: 2
-    }).format(value);
-  };
-
-  const formatCurrencySafe = (value: number) => {
-    return new Intl.NumberFormat('es-MX', {
-      style: 'currency',
-      currency: 'MXN',
-      minimumFractionDigits: 2
-    }).format(value);
-  };
-
-  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-semibold text-gray-800">{label}</p>
-          <p className="text-blue-600">{formatCurrency(payload[0].value)}</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const PieTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-semibold">{`Cliente: ${data.cliente}`}</p>
-          <p className="text-blue-600">{`Total: ${formatCurrency(data.total)}`}</p>
-          <p className="text-gray-500">{`Porcentaje: ${((data.total / (stats?.totalGeneral || 1)) * 100).toFixed(1)}%`}</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  // Pie label personalizado para mejorar legibilidad
-  const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, cliente }: any) => {
-    const RADIAN = Math.PI / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 1.35;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-    const showName = stats?.ventasPorCliente.length && stats.ventasPorCliente.length <= 6;
-    return (
-      <text
-        x={x}
-        y={y}
-        fill="#333"
-        textAnchor={x > cx ? 'start' : 'end'}
-        dominantBaseline="central"
-        fontSize={8}
-        fontWeight={500}
-        style={{ pointerEvents: 'none' }}
-      >
-        {showName ? `${cliente} ${(percent * 100).toFixed(1)}%` : `${(percent * 100).toFixed(1)}%`}
-      </text>
-    );
-  };
-
-  // Donut label central para mostrar el total general
-  const renderDonutCenter = (stats: DashboardStats | null) => {
-    if (!stats) return null;
-    return (
-      <g>
-        <text x="50%" y="48%" textAnchor="middle" dominantBaseline="middle" fontSize="22" fontWeight="bold" fill="#3b82f6">
-          {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(stats.totalGeneral)}
-        </text>
-        <text x="50%" y="60%" textAnchor="middle" dominantBaseline="middle" fontSize="13" fill="#888">
-          Total General
-        </text>
-      </g>
-    );
-  };
 
   // Extraer años y meses únicos de allSales
   const years = Array.from(new Set(allSales.map(s => {
@@ -456,9 +395,9 @@ export default function SalesDashboard() {
     
     // Logotipo
     const logoUrl = '/images/LogoCr.jpg';
-    const logoImg = await fetch(logoUrl).then(r => r.blob()).then(blob => new Promise(resolve => {
+    const logoImg = await fetch(logoUrl).then(r => r.blob()).then(blob => new Promise<string>(resolve => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
+      reader.onload = () => resolve(reader.result as string);
       reader.readAsDataURL(blob);
     }));
     doc.addImage(logoImg, 'JPEG', 40, 28.35, 70, 70); // 1 cm desde el borde superior

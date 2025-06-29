@@ -12,7 +12,6 @@ const navItems = [
   { label: 'Productos', href: '#products' },
   { label: 'Beneficios', href: '#benefits' },
   { label: 'Contacto', href: '#contact' },
-  { label: 'Dashboard', href: '#dashboard' },
 ];
 
 export function Header() {
